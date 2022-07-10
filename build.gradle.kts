@@ -6,9 +6,6 @@ plugins {
     `maven-publish`
 }
 
-group = "com.github.bluedragonmc"
-version = "0.1.0"
-
 repositories {
     mavenCentral()
 }
@@ -26,4 +23,16 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "16"
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = "com.bluedragonmc"
+            artifactId = "messagingsystem"
+            version = "0.1.0"
+
+            from(components["java"])
+        }
+    }
 }
