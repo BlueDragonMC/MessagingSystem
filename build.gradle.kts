@@ -3,11 +3,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "1.7.10"
     kotlin("plugin.serialization") version "1.7.10"
-    application
+    `maven-publish`
 }
 
-group = "com.bluedragonmc"
-version = "0.0.1"
+group = "com.github.bluedragonmc"
+version = "0.1.0"
 
 repositories {
     mavenCentral()
@@ -26,8 +26,4 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "16"
-}
-
-application {
-    mainClass.set("MainKt")
 }

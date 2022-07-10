@@ -15,8 +15,11 @@ to your project.
 ## Installation
 Install with Gradle:
 ```kotlin
+repositories {
+    maven(url = "https://jitpack.io")
+}
 dependencies {
-    implementation("com.bluedragonmc:messagingsystem:$version")
+    implementation("com.github.bluedragonmc:messagingsystem:$version")
 }
 ```
 
