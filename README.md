@@ -50,6 +50,7 @@ client.close()
 // This will close the two created channels and the connection.
 // `AMQPClient`s cannot be used after they are closed.
 ```
+`AMQPClient` also implements the `Closeable` interface, so it can be used in a `use` block. It will be closed automatically after the block has finished executing.
 ### `AMQPClient` properties:
 System properties will be used if no value is provided to the parameter.
 If a system property value was not found, the default is used.
@@ -64,8 +65,9 @@ If a system property value was not found, the default is used.
 | routingKey: String      | `rabbitmq_routing_key`       | ""                             | The routing key used for sending and receiving pub/sub messages.                                                                                                                             |
 | rpcQueueName: String    | `rabbitmq_rpc_queue_name`    | "rpc_queue"                    | The name of the RabbitMQ queue which all RPC messages are published to.                                                                                                                      |
 | connectionName: String? |                              | Value of `AMQPClient#toString` | The connection name, which is supplied to RabbitMQ when a connection is made and displayed in the RabbitMQ server's logs.                                                                    |
+| writeOnly: Boolean      |                              | false                          | When set to `true`, message consumption is disabled. However, RPC messages can still be sent and await a response.                                                                           |
 
-ℹ️ `exchangeName`, `rpcExchangeName`, `routingKey`, and `rpcQueueName` should use the same values for all instances of this program. If not, some messages may not be received properly.
+ℹ️ ️`exchangeName`, `rpcExchangeName`, `routingKey`, and `rpcQueueName` should use the same values for all instances of this program. If not, some messages may not be received properly.
 
 ### Pub/Sub
 #### Subscribe
@@ -74,6 +76,8 @@ client.subscribe(MyMessage::class) { message ->
     // `message` is guaranteed to be of type MyMessage
     logger.info("Greeting received: ${message.greeting}")
 }
+// Unsubscribe
+client.unsubscribe(MyMessage::class)
 ```
 #### Publish
 ```kotlin
@@ -92,6 +96,8 @@ client.subscribeRPC(MyMessage::class) { message ->
     return MyResponse("Welcome!") // This message will be returned to the sender. 
                                   // It can be any subclass of `Message`.
 }
+// Unsubscribe
+client.unsubscribeRPC(MyMessage::class)
 ```
 #### Send and await response
 ℹ️ This method is a `suspend fun`, so it must be called from a coroutine or another suspend function.
@@ -102,6 +108,9 @@ val response = client.publishAndReceive(MyMessage("Hello, world!"))
 ### Exception Handling
 If an uncaught exception occurs in an RPC handler, an `RPCErrorMessage` is sent back to the receiver, which will cause an `RPCMessagingException` to be thrown on the receiving end.
 This signifies the exception occurred on the **server**, not the client.
+
+### Initialization
+The RabbitMQ connection and channels are not initialized until they are first used. If you want to pre-initialize them, use `client.preInitialize()`
 
 ## 🚧 Disclaimer
 This project is far from production-ready and should not be trusted for mission-critical data.
