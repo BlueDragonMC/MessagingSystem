@@ -47,7 +47,7 @@ internal class PubSubMessagingChannel(
 
         // Listen for pub/sub messages
         logger.debug("Starting to consume pub/sub messages")
-        channel.basicConsume(queueName, { consumerTag, delivery ->
+        channel.basicConsume(queueName, true, { consumerTag, delivery ->
             val messageString = String(delivery.body ?: return@basicConsume, StandardCharsets.UTF_8)
             val decoded = json.decodeFromString<Message>(messageString)
             logger.debug("[$consumerTag] Message received: $decoded")
