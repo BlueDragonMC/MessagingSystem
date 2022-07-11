@@ -27,22 +27,32 @@ dependencies {
 ### Creating Messages
 All message classes must be serializable with
 [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization#kotlin-multiplatform--multi-format-reflectionless-serialization=)
-and <u>must extend `Message`</u>.
-When using the default `Json` instance, UUIDs have a contextual serializer, so they can be serialized by adding the `@Contextual` annotation to their declarations.
+and <u>must implement `Message`</u>.
+UUIDs have a contextual serializer, so they can be serialized by adding the `@Contextual` annotation to their declarations.
 ```kotlin
 @Serializable // Make sure this is `kotlinx.serialization.Serializable` and not `java.io.Serializable`
-data class MyMessage(val greeting: String) : Message()
+data class MyMessage(val greeting: String) : Message
 
 @Serializable
-data class MyResponse(val welcome: String) : Message()
+data class MyResponse(val welcome: String) : Message
 
 @Serializable
-data class UUIDExample(val username: String, @Contextual val uuid: UUID) : Message()
+data class UUIDExample(val username: String, @Contextual val uuid: UUID) : Message
+
+/*
+Due to a security restriction of kotlinx.serialization, ALL messages must be registered as subclasses using a polymorphic module builder.
+This will be passed to the AMQPClient in the next step.
+ */
+val polymorphicModuleBuilder: PolymorphicModuleBuilder<Message>.() -> Unit = {
+    subclass(MyMessage::class)
+    subclass(MyResponse::class)
+    subclass(UUIDExample::class)
+}
 ```
 ### Connect
 ```kotlin
 // RabbitMQ's default port is 5672
-val client = AMQPClient("127.0.0.1", 5672)
+val client = AMQPClient(hostname = "127.0.0.1", port = 5672, polymorphicModuleBuilder = polymorphicModuleBuilder)
 // Every client will only make one connection and open two channels: one for pub/sub and one for RPC.
 // This instance should be kept and used for every method call.
 ```
@@ -56,21 +66,22 @@ client.close()
 `AMQPClient` also implements the `Closeable` interface, so it can be used in a `use` block. It will be closed automatically after the block has finished executing.
 ### `AMQPClient` properties:
 System properties will be used if no value is provided to the parameter.
-If a system property value was not found, the default is used.
+If a system property value was not found, the default is used. See [AMQPClient](https://github.com/BlueDragonMC/MessagingSystem/blob/main/src/main/kotlin/com/bluedragonmc/messagingsystem/AMQPClient.kt) for descriptions of each of these properties.
 
-| Property                | System Property              | Default                        | Description                                                                                                                                                                                  |
-|-------------------------|------------------------------|--------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| hostname: String        | `rabbitmq_host`              | "rabbitmq"                     | The hostname or IP address of the RabbitMQ server.                                                                                                                                           |
-| port: Int               | `rabbitmq_port`              | 5672                           | The port of the RabbitMQ server. The default port is 5672.                                                                                                                                   |
-| json: Json              |                              | Custom `Json` instance         | A `Json` instance used for serializing and deserializing messages to JSON. All messages are converted to JSON before they are sent, and converted back into objects after they are received. |
-| exchangeName: String    | `rabbitmq_exchange_name`     | "bluedragon"                   | The name of the RabbitMQ exchange for pub/sub messaging.                                                                                                                                     |
-| rpcExchangeName: String | `rabbitmq_rpc_exchange_name` | ""                             | The name of the RabbitMQ exchange for RPC messaging.                                                                                                                                         |
-| routingKey: String      | `rabbitmq_routing_key`       | ""                             | The routing key used for sending and receiving pub/sub messages.                                                                                                                             |
-| rpcQueueName: String    | `rabbitmq_rpc_queue_name`    | "rpc_queue"                    | The name of the RabbitMQ queue which all RPC messages are published to.                                                                                                                      |
-| connectionName: String? |                              | Value of `AMQPClient#toString` | The connection name, which is supplied to RabbitMQ when a connection is made and displayed in the RabbitMQ server's logs.                                                                    |
-| writeOnly: Boolean      |                              | false                          | When set to `true`, message consumption is disabled. However, RPC messages can still be sent and await a response.                                                                           |
+| Property                                                              | System Property              | Default                        |
+|-----------------------------------------------------------------------|------------------------------|--------------------------------|
+| hostname: String                                                      | `rabbitmq_host`              | "rabbitmq"                     |
+| port: Int                                                             | `rabbitmq_port`              | 5672                           |
+| serializersModuleBuilder: SerializersModuleBuilder.() -> Unit         |                              | {}                             |
+| polymorphicModuleBuilder: PolymorphicModuleBuilder.() -> Unit         |                              |                                |
+| exchangeName: String                                                  | `rabbitmq_exchange_name`     | "bluedragon"                   |
+| rpcExchangeName: String                                               | `rabbitmq_rpc_exchange_name` | ""                             |
+| routingKey: String                                                    | `rabbitmq_routing_key`       | ""                             |
+| rpcQueueName: String                                                  | `rabbitmq_rpc_queue_name`    | "rpc_queue"                    |
+| connectionName: String?                                               |                              | Value of `AMQPClient#toString` |
+| writeOnly: Boolean                                                    |                              | false                          |
 
-ℹ️ ️`exchangeName`, `rpcExchangeName`, `routingKey`, and `rpcQueueName` should use the same values for all instances of this program. If not, some messages may not be received properly.
+ℹ️ ️`polymorphicModuleBuilder`, `exchangeName`, `rpcExchangeName`, `routingKey`, `rpcQueueName` should use the same values for all instances of this program. If not, some messages may not be received properly.
 
 ### Pub/Sub
 #### Subscribe

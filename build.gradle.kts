@@ -30,7 +30,7 @@ publishing {
         create<MavenPublication>("maven") {
             groupId = "com.bluedragonmc"
             artifactId = "messagingsystem"
-            version = "0.1.0"
+            version = "0.2.0"
 
             from(components["java"])
         }

@@ -3,13 +3,14 @@ package com.bluedragonmc.messagingsystem
 import com.bluedragonmc.messagingsystem.channel.PubSubMessagingChannel
 import com.bluedragonmc.messagingsystem.channel.RPCMessagingChannel
 import com.bluedragonmc.messagingsystem.message.Message
+import com.bluedragonmc.messagingsystem.message.RPCErrorMessage
 import com.bluedragonmc.messagingsystem.serializer.UUIDSerializer
 import com.rabbitmq.client.ConnectionFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.*
 import java.io.Closeable
 import java.util.*
 import kotlin.reflect.KClass
@@ -30,17 +31,16 @@ class AMQPClient(
      */
     private val port: Int = System.getProperty("rabbitmq_port", "5672").toInt(),
     /**
-     * The [Json] instance used for serializing and deserializing messages.
-     * All messages are converted to JSON before they are sent, and converted back into objects after they are received.
-     * By default, it comes with the capability of serializing [UUID]s and does not pretty print when encoding.
+     * A function that is run with a [SerializersModuleBuilder] as its receiver.
+     * Used for registering contextual serializers and changing [Json] serialization settings.
      */
-    json: Json = Json {
-        prettyPrint = false
-        serializersModule = SerializersModule {
-            include(serializersModule)
-            contextual(UUID::class, UUIDSerializer)
-        }
-    },
+    serializersModuleBuilder: SerializersModuleBuilder.() -> Unit = {},
+    /**
+     * A function that is run with a [PolymorphicModuleBuilder] as its receiver.
+     * Used for registering [Message] subclasses. All subclasses **MUST** be registered within this function,
+     * or they will not be able to be serialized at runtime. This is a security feature imposed by `kotlinx.serialization`.
+     */
+    polymorphicModuleBuilder: PolymorphicModuleBuilder<Message>.() -> Unit,
     /**
      * The name of the RabbitMQ exchange for pub/sub messaging.
      * Defaults to the system property `rabbitmq_exchange_name`, or if the property is not present, "bluedragon".
@@ -84,6 +84,23 @@ class AMQPClient(
 
     private val connection by lazy {
         connectionFactory.newConnection(connectionName ?: this.toString())
+    }
+
+    private val json by lazy {
+        Json {
+            prettyPrint = false
+            serializersModule = SerializersModule {
+                include(serializersModule)
+                contextual(UUID::class, UUIDSerializer)
+                serializersModuleBuilder()
+                polymorphic(Message::class) {
+                    // All subclasses of Message must be registered
+                    // see https://github.com/Kotlin/kotlinx.serialization/blob/master/docs/polymorphism.md#registered-subclasses=
+                    subclass(RPCErrorMessage::class)
+                    polymorphicModuleBuilder()
+                }
+            }
+        }
     }
 
     private val pubSub by lazy {
