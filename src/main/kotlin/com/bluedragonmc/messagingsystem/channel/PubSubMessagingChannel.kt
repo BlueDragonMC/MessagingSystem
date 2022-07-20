@@ -7,10 +7,7 @@ import com.rabbitmq.client.Channel
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import org.slf4j.LoggerFactory
-import java.io.Closeable
 import java.nio.charset.StandardCharsets
-import kotlin.reflect.KClass
 
 /**
  * Represents a pub/sub messaging channel as a wrapper around a RabbitMQ [Channel].
@@ -25,19 +22,11 @@ internal class PubSubMessagingChannel(
     private val exchangeName: String,
     private val routingKey: String,
     writeOnly: Boolean
-): Closeable {
+): MessagingChannel<Unit, PubSubMessageListener<*>>(!writeOnly) {
 
-    private val logger = LoggerFactory.getLogger(this.javaClass)
     private lateinit var queueName: String
-    internal val listeners = mutableListOf<PubSubMessageListener<out Message>>()
 
-    init {
-        if(!writeOnly) {
-            consume()
-        } else logger.debug("Not listening for pub/sub messages because writeOnly is enabled.")
-    }
-
-    private fun consume() {
+    override fun consume() {
         logger.debug("Initializing exchange")
         channel.exchangeDeclare(exchangeName, BuiltinExchangeType.FANOUT)
         logger.debug("Declaring queue")
@@ -52,13 +41,7 @@ internal class PubSubMessagingChannel(
             val decoded = json.decodeFromString<Message>(messageString)
             logger.debug("[$consumerTag] Message received: $decoded")
 
-            // Check for non-RPC listeners that handle this message type
-            listeners.filter {
-                it.type == decoded::class
-            }.forEach {
-                @Suppress("UNCHECKED_CAST") // The listener will always accept a subclass of [Message]
-                (it as PubSubMessageListener<Message>).listener(decoded)
-            }
+            handle(decoded)
         }, { consumerTag ->
             logger.warn("[$consumerTag] Cancel callback executed")
         }) { consumerTag, sig ->
@@ -66,20 +49,10 @@ internal class PubSubMessagingChannel(
         }
     }
 
-    fun send(message: Message) {
+    override fun send(message: Message) {
         logger.debug("Sending Message: $message")
         val messageString = json.encodeToString(message)
         channel.basicPublish(exchangeName, routingKey, null, messageString.toByteArray(StandardCharsets.UTF_8))
-    }
-
-    fun <T : Message> listen(message: KClass<T>, listener: (T) -> Unit) {
-        logger.debug("Subscribed to message type $message")
-        listeners.add(PubSubMessageListener(message, listener))
-    }
-
-    fun <T: Message> unsubscribeAll(messageType: KClass<T>) {
-        logger.debug("Unsubscribed from all pub/sub messages of type $messageType")
-        listeners.removeAll { it.type == messageType }
     }
 
     override fun close() {

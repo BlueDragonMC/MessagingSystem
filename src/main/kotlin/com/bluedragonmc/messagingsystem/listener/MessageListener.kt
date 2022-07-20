@@ -1,22 +1,13 @@
 package com.bluedragonmc.messagingsystem.listener
 
 import com.bluedragonmc.messagingsystem.message.Message
-import com.bluedragonmc.messagingsystem.message.RPCErrorMessage
 import kotlin.reflect.KClass
 
-abstract class MessageListener<T : Message> {
+abstract class MessageListener<T : Message, R> {
     abstract val type: KClass<T>
+    abstract val listener: (T) -> R
 }
 
-class PubSubMessageListener<T : Message>(override val type: KClass<T>, listener: (T) -> Unit) : MessageListener<T>() {
-    val listener: (T) -> Unit = { message ->
-        kotlin.runCatching { listener(message) }.onFailure { e -> e.printStackTrace() }
-    }
-}
+class PubSubMessageListener<T : Message>(override val type: KClass<T>, override val listener: (T) -> Unit) : MessageListener<T, Unit>()
 
-class RPCMessageListener<T : Message>(override val type: KClass<T>, listener: (T) -> Message) : MessageListener<T>() {
-    val listener: (T) -> Message = { message ->
-        kotlin.runCatching { listener(message) }
-            .getOrElse { e -> RPCErrorMessage("Error in RPC handler: ${e::class.simpleName}: ${e.message}") }
-    }
-}
+class RPCMessageListener<T : Message>(override val type: KClass<T>, override val listener: (T) -> Message) : MessageListener<T, Message>()

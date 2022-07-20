@@ -2,6 +2,8 @@ package com.bluedragonmc.messagingsystem
 
 import com.bluedragonmc.messagingsystem.channel.PubSubMessagingChannel
 import com.bluedragonmc.messagingsystem.channel.RPCMessagingChannel
+import com.bluedragonmc.messagingsystem.listener.PubSubMessageListener
+import com.bluedragonmc.messagingsystem.listener.RPCMessageListener
 import com.bluedragonmc.messagingsystem.message.Message
 import com.bluedragonmc.messagingsystem.message.RPCErrorMessage
 import com.bluedragonmc.messagingsystem.serializer.UUIDSerializer
@@ -129,7 +131,7 @@ class AMQPClient(
      * @return A [Message] that was returned by the consumer (the application that used the [subscribeRPC] method to listen for RPC messages and respond to them)
      */
     suspend fun publishAndReceive(message: Message): Message = runBlocking {
-        withContext(Dispatchers.Default) { rpc.publishAndReceive(message) }
+        withContext(Dispatchers.Default) { rpc.send(message) }
     }
 
     /**
@@ -140,14 +142,14 @@ class AMQPClient(
      */
     fun <T : Message> subscribe(messageType: KClass<T>, listener: (T) -> Unit) {
         require(!writeOnly) { "Cannot subscribe with writeOnly enabled" }
-        pubSub.listen(messageType, listener)
+        pubSub.subscribe(PubSubMessageListener(messageType, listener))
     }
 
     /**
      * Remove all pub/sub subscriptions for a given message type.
      * @param messageType The type of message to remove all subscriptions from
      */
-    fun <T : Message> unsubscribe(messageType: KClass<T>) = pubSub.unsubscribeAll(messageType)
+    fun <T : Message> unsubscribe(messageType: KClass<T>) = pubSub.unsubscribe(messageType)
 
     /**
      * Subscribe to all RPC messages of a certain type.
@@ -157,7 +159,7 @@ class AMQPClient(
      */
     fun <T : Message> subscribeRPC(messageType: KClass<T>, listener: (T) -> Message) {
         require(!writeOnly) { "Cannot subscribe with writeOnly enabled" }
-        rpc.listen(messageType, listener)
+        rpc.subscribe(RPCMessageListener(messageType, listener))
     }
 
     /**
@@ -166,7 +168,7 @@ class AMQPClient(
      * all received RPC messages of this type will throw an `RPCMessagingError` because no handler is found.
      * @param messageType The type of message to unsubscribe from
      */
-    fun <T : Message> unsubscribeRPC(messageType: KClass<T>) = rpc.unsubscribeAll(messageType)
+    fun <T : Message> unsubscribeRPC(messageType: KClass<T>) = rpc.unsubscribe(messageType)
 
     /**
      * Force the connection to be initialized before it is used for the first time.

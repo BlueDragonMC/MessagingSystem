@@ -1,3 +1,3 @@
 package com.bluedragonmc.messagingsystem.exception
 
-class RPCMessagingException(message: String?) : RuntimeException(message)
+class RPCMessagingException(message: String?) : IllegalStateException(message)
